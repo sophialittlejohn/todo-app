@@ -1,16 +1,42 @@
 import sqlite3
 from datetime import datetime, date
 
-print(date.today())  # => 2018-06-22
-print(datetime.now())  # => 2018-06-22 12:42:23.854477
+# print(date.today())  # => 2018-06-22
+# print(datetime.now())  # => 2018-06-22 12:42:23.854477
 
 
 class TODOApp:
     def __init__(self):
-        self.create_table()
+        self.sqlite_file = 'todoapp.sqlite'
+        self.conn = sqlite3.connect(self.sqlite_file)
+        self.c = self.conn.cursor()
 
     def start(self):
-        self.help_menu()
+        todo_item = TODOItems()
+        return todo_item.help_menu()
+
+
+class TODOLists(TODOApp):
+    def __init__(self):
+        super().__init__()
+
+
+class TODOItems(TODOApp):
+    def __init__(self):
+        super().__init__()
+        self.create_table()
+
+    def create_table(self):
+        # Creating a new SQLite table for countries
+        try:
+            self.c.execute('''
+            CREATE TABLE todos (
+              todo_id integer PRIMARY KEY,
+              content text NOT NULL,
+              created text NOT NULL
+            );''')
+        except sqlite3.OperationalError:
+            print('DB already exists')
 
     def help_menu(self):
         print('''
@@ -36,56 +62,25 @@ class TODOApp:
         else:
             return self.help_menu()
 
-    def create_table(self):
-        sqlite_file = 'todo_db.sqlite'  # name of the sqlite database file
-        # Connecting to the database file
-        conn = sqlite3.connect(sqlite_file)
-        c = conn.cursor()
-
-        # Creating a new SQLite table for countries
-        try:
-            c.execute('''
-            CREATE TABLE todos (
-              todo_id integer PRIMARY KEY,
-              content text NOT NULL,
-              created text NOT NULL
-            );''')
-        except sqlite3.OperationalError:
-            print('DB already exists')
-
-        # Committing changes and closing the connection to the database file
-        conn.commit()
-        conn.close()
-
     def add_todo(self):
-        sqlite_file = 'todo_db.sqlite'  # name of the sqlite database file
         content = input('Enter new todo > ')
         time_stamp = str(datetime.now())
-        print(time_stamp)
-        print(type(time_stamp))
-        conn = sqlite3.connect(sqlite_file)
-        c = conn.cursor()
-        sql = f'INSERT INTO todos (content, created) VALUES ({content}, {time_stamp});'
-        c.execute(sql)
-        conn.commit()
-        conn.close()
+        # sql = 'INSERT INTO todos (content, created) VALUES ({}, {});'.format(content, time_stamp)
+        self.c.execute("""INSERT INTO todos (content, created) VALUES (?, ?)""", (content, time_stamp))
+        print(f'{content} added at : {time_stamp}')
         return self.help_menu()
 
     def remove_todo(self):
-        pass
+        index = input('Enter index of todo to delete > ')
+        self.c.execute("""DELETE FROM todos WHERE todo_id = ?""", index)
+        return self.help_menu()
 
     def list_all_todos(self):
-        sqlite_file = 'todo_db.sqlite'  # name of the sqlite database file
-        conn = sqlite3.connect(sqlite_file)
-        c = conn.cursor()
-        sql = 'SELECT * FROM todos'
-        c.execute(sql)
-        all_rows = c.fetchall()
+        self.c.execute('''SELECT * FROM todos''')
+        all_rows = self.c.fetchall()
         print("All todos: ")
         for row in all_rows:
             print(f'{row[0]}: {row[1]}')
-
-        conn.close()
 
         what_next = input("Show menu? [y/n]")
         if what_next == 'y' or what_next == 'yes':
@@ -94,7 +89,34 @@ class TODOApp:
             return
 
     def search_todos(self):
-        pass
+        item = input('What are you looking for?  > ')
+        if item.isdigit():
+            try:
+                self.c.execute("""SELECT * FROM todos WHERE todo_id=?""", item)
+            except sqlite3.ProgrammingError:
+                choice = input(f"Todo number {item} not found. \n\n's' to search again"
+                               f"\n'h' for help menu\n'q' to quit\n> ")
+                if choice == 's':
+                    return self.search_todos()
+                elif choice == 'q':
+                    return
+                else:
+                    return self.help_menu()
+        else:
+            try:
+                self.c.execute("""SELECT * FROM todos WHERE content LIKE '%?%'""")
+            except sqlite3.ProgrammingError:
+                choice = input(f"Todo containing {item} not found. \n\n's' to search again"
+                               f"\n'h' for help menu\n'q' to quit\n> ")
+                if choice == 's':
+                    return self.search_todos()
+                elif choice == 'q':
+                    return
+                else:
+                    return self.help_menu()
+        data = self.c.fetchone()
+        print(data)
+        return self.help_menu()
 
 
 app = TODOApp()
